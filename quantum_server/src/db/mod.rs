@@ -4,6 +4,7 @@ use std::env;
 pub mod user;
 pub mod chat;
 pub mod message;
+pub mod redis;
 
 pub async fn init_pool() -> PgPool {
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");

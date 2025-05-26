@@ -14,14 +14,19 @@ use sqlx::PgPool;
 use crate::db::message::{NewMessage, send_message};
 use crate::db::message::get_messages_for_chat;
 use uuid::Uuid;
+use redis::aio::Connection;
+use redis::AsyncCommands;
+use serde_json;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub async fn run_ws_server(addr: &str, pool: PgPool) {
+pub async fn run_ws_server(addr: &str, pool: PgPool, redis: Arc<Mutex<Connection>>) {
     let listener = TcpListener::bind(addr).await.expect("Failed to bind");
 
     println!("WebSocket server running on {}", addr);
 
     while let Ok((stream, addr)) = listener.accept().await {
-        tokio::spawn(handle_connection(stream, addr, pool.clone()));
+        tokio::spawn(handle_connection(stream, addr, pool.clone(), Arc::clone(&redis)));
     }
 }
 
@@ -40,7 +45,7 @@ fn generate_jwt(user_id: &str) -> String {
     ).unwrap()
 }
 
-async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool: PgPool) {
+async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool: PgPool, redis: Arc<Mutex<Connection>>) {
     let mut authenticated_user: Option<String> = None;
 
     let ws_stream = accept_async(stream).await.expect("WebSocket handshake failed");
@@ -158,13 +163,36 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                         match Uuid::parse_str(chat_id) {
                             Ok(chat_uuid) => {
+				let mut redis_conn = redis.lock().await;
+                                let cache_key = format!("chat:{}:messages", chat_id);
+
+                                // Пытаемся получить сообщения из Redis
+                                match redis_conn.get::<_, String>(&cache_key).await {
+                                    Ok(cached_json) => {
+                                        let _ = write.send(Message::Text(cached_json)).await;
+                                        continue;
+                                    }
+                                    Err(_) => {
+                                        // нет кэша — продолжаем к БД
+                                    }
+                                }
+
+                                // Загружаем из PostgreSQL
                                 match get_messages_for_chat(chat_uuid, limit, &pool).await {
                                     Ok(messages) => {
-                                        let response = json!({
+                                        let response_json = json!({
                                             "status": "messages",
                                             "messages": messages
                                         });
-                                        let _ = write.send(Message::Text(response.to_string())).await;
+
+                                        let response_string = serde_json::to_string(&response_json)
+                                            .expect("Failed to serialize response");
+
+                                        // Сохраняем в Redis на 60 секунд
+                                        let _: () = redis_conn.set_ex(&cache_key, &response_string, 180).await.unwrap();
+
+                                        // Отправляем клиенту
+                                        let _ = write.send(Message::Text(response_json.to_string())).await;
                                     }
                                     Err(e) => {
                                         let err = format!(r#"{{"error": "db_error", "detail": "{}"}}"#, e);
