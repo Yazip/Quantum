@@ -6,27 +6,27 @@ DEBUG: all keys: APPLINKDIR, BINDIR, CMAKECONFIGDIR, ENGINESDIR, INCLUDEDIR, LDL
 No value given for CMAKECONFIGDIR
 No value given for PKGCONFIGDIR
 No value given for libdir
-DEBUG: PREFIX = . => PREFIX = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src
-DEBUG: libdir = . => libdir = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src
-DEBUG: BINDIR = apps => BINDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\apps, BINDIR_REL_PREFIX = apps
-DEBUG: LIBDIR =  => LIBDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src, LIBDIR_REL_PREFIX = 
-DEBUG: INCLUDEDIR = [ include, ./include ] => INCLUDEDIR = [ D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\include, D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\include ], INCLUDEDIR_REL_PREFIX = [ include, ./include ]
-DEBUG: APPLINKDIR = ms => APPLINKDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\ms, APPLINKDIR_REL_PREFIX = ms
-DEBUG: ENGINESDIR = engines => ENGINESDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\engines, ENGINESDIR_REL_LIBDIR = engines
-DEBUG: MODULESDIR = providers => MODULESDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\providers, MODULESDIR_REL_LIBDIR = providers
-DEBUG: PKGCONFIGDIR = . => PKGCONFIGDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src, PKGCONFIGDIR_REL_LIBDIR = .
-DEBUG: CMAKECONFIGDIR = . => CMAKECONFIGDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src, CMAKECONFIGDIR_REL_LIBDIR = .
+DEBUG: PREFIX = . => PREFIX = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src
+DEBUG: libdir = . => libdir = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src
+DEBUG: BINDIR = apps => BINDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\apps, BINDIR_REL_PREFIX = apps
+DEBUG: LIBDIR =  => LIBDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src, LIBDIR_REL_PREFIX = 
+DEBUG: INCLUDEDIR = [ include, ./include ] => INCLUDEDIR = [ D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\include, D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\include ], INCLUDEDIR_REL_PREFIX = [ include, ./include ]
+DEBUG: APPLINKDIR = ms => APPLINKDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\ms, APPLINKDIR_REL_PREFIX = ms
+DEBUG: ENGINESDIR = engines => ENGINESDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\engines, ENGINESDIR_REL_LIBDIR = engines
+DEBUG: MODULESDIR = providers => MODULESDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src\providers, MODULESDIR_REL_LIBDIR = providers
+DEBUG: PKGCONFIGDIR = . => PKGCONFIGDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src, PKGCONFIGDIR_REL_LIBDIR = .
+DEBUG: CMAKECONFIGDIR = . => CMAKECONFIGDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\build\src, CMAKECONFIGDIR_REL_LIBDIR = .
 DEBUG: all keys: APPLINKDIR, BINDIR, CMAKECONFIGDIR, ENGINESDIR, INCLUDEDIR, LDLIBS, LIBDIR, MODULESDIR, PKGCONFIGDIR, PREFIX, VERSION, libdir
-DEBUG: PREFIX = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install => PREFIX = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install
-DEBUG: libdir = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib => libdir = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib
-DEBUG: BINDIR = bin => BINDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\bin, BINDIR_REL_PREFIX = bin
-DEBUG: LIBDIR = lib => LIBDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib, LIBDIR_REL_PREFIX = lib
-DEBUG: INCLUDEDIR = include => INCLUDEDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\include, INCLUDEDIR_REL_PREFIX = include
-DEBUG: APPLINKDIR = include/openssl => APPLINKDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\include\openssl, APPLINKDIR_REL_PREFIX = include/openssl
-DEBUG: ENGINESDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\engines-3 => ENGINESDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\engines-3, ENGINESDIR_REL_LIBDIR = engines-3
-DEBUG: MODULESDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\ossl-modules => MODULESDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\ossl-modules, MODULESDIR_REL_LIBDIR = ossl-modules
-DEBUG: PKGCONFIGDIR =  => PKGCONFIGDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib, PKGCONFIGDIR_REL_LIBDIR = 
-DEBUG: CMAKECONFIGDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\cmake\OpenSSL => CMAKECONFIGDIR = D:\quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\cmake\OpenSSL, CMAKECONFIGDIR_REL_LIBDIR = cmake\OpenSSL
+DEBUG: PREFIX = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install => PREFIX = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install
+DEBUG: libdir = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib => libdir = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib
+DEBUG: BINDIR = bin => BINDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\bin, BINDIR_REL_PREFIX = bin
+DEBUG: LIBDIR = lib => LIBDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib, LIBDIR_REL_PREFIX = lib
+DEBUG: INCLUDEDIR = include => INCLUDEDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\include, INCLUDEDIR_REL_PREFIX = include
+DEBUG: APPLINKDIR = include/openssl => APPLINKDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\include\openssl, APPLINKDIR_REL_PREFIX = include/openssl
+DEBUG: ENGINESDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\engines-3 => ENGINESDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\engines-3, ENGINESDIR_REL_LIBDIR = engines-3
+DEBUG: MODULESDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\ossl-modules => MODULESDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\ossl-modules, MODULESDIR_REL_LIBDIR = ossl-modules
+DEBUG: PKGCONFIGDIR =  => PKGCONFIGDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib, PKGCONFIGDIR_REL_LIBDIR = 
+DEBUG: CMAKECONFIGDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\cmake\OpenSSL => CMAKECONFIGDIR = D:\quantum\Quantum\quantum_server\target\debug\build\openssl-sys-adf01e41cba66b90\out\openssl-build\install\lib\cmake\OpenSSL, CMAKECONFIGDIR_REL_LIBDIR = cmake\OpenSSL
 
 Служебная программа обслуживания программ Microsoft (R), версия 14.40.33811.0
 (C) Корпорация Майкрософт (Microsoft Corporation).  Все права защищены.

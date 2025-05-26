@@ -12,7 +12,7 @@ cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS
 cargo:rerun-if-env-changed=CARGO_CFG_TARGET_ENV
 cargo:rerun-if-env-changed=CARGO_CFG_TARGET_ENDIAN
 OPT_LEVEL = Some(0)
-OUT_DIR = Some(D:\quantum\quantum_server\target\debug\build\ring-1ecfe49a9e1ea2d8\out)
+OUT_DIR = Some(D:\quantum\Quantum\quantum_server\target\debug\build\ring-1ecfe49a9e1ea2d8\out)
 TARGET = Some(x86_64-pc-windows-msvc)
 cargo:rerun-if-env-changed=VCINSTALLDIR
 VCINSTALLDIR = None
@@ -26,7 +26,7 @@ cargo:rerun-if-env-changed=WindowsSDKVersion
 WindowsSDKVersion = None
 cargo:rerun-if-env-changed=LIB
 LIB = None
-PATH = Some(D:\quantum\quantum_server\target\debug\deps;D:\quantum\quantum_server\target\debug;C:\Users\Илья\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files (x86)\VMware\VMware Workstation\bin\;C:\Program Files\Microsoft MPI\Bin\;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files\Python311\Scripts\;C:\Program Files\Python311\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\nodejs\;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\;C:\Program Files\Git\cmd;C:\Program Files\dotnet\;C:\Program Files\PostgreSQL\17\bin;C:\Program Files\Redis\;C:\Windows\system32\config\systemprofile\AppData\Local\Microsoft\WindowsApps;;C:\Program Files\Docker\Docker\resources\bin;C:\Users\Илья\.cargo\bin;C:\Users\Илья\AppData\Local\Microsoft\WindowsApps;C:\Users\Илья\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\Илья\AppData\Roaming\npm;C:\Program Files\JetBrains\PyCharm Community Edition 2022.3.3\bin;;C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2023.2.4\bin;;C:\Users\Илья\AppData\Local\GitHubDesktop\bin;C:\Users\Илья\.dotnet\tools;C:\msys64\ucrt64\bin;C:\Program Files\LLVM\bin;C:\flutter\src\flutter\bin;C:\Android\SDK\platform-tools;C:\Android\SDK\emulator;;C:\Users\Илья\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+PATH = Some(D:\quantum\Quantum\quantum_server\target\debug\deps;D:\quantum\Quantum\quantum_server\target\debug;C:\Users\Илья\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files (x86)\VMware\VMware Workstation\bin\;C:\Program Files\Microsoft MPI\Bin\;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files\Python311\Scripts\;C:\Program Files\Python311\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\nodejs\;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\;C:\Program Files\Git\cmd;C:\Program Files\dotnet\;C:\Program Files\PostgreSQL\17\bin;C:\Program Files\Redis\;C:\Windows\system32\config\systemprofile\AppData\Local\Microsoft\WindowsApps;;C:\Program Files\Docker\Docker\resources\bin;C:\Strawberry\c\bin;C:\Strawberry\perl\site\bin;C:\Strawberry\perl\bin;C:\Users\Илья\.cargo\bin;C:\Users\Илья\AppData\Local\Microsoft\WindowsApps;C:\Users\Илья\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\Илья\AppData\Roaming\npm;C:\Program Files\JetBrains\PyCharm Community Edition 2022.3.3\bin;;C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2023.2.4\bin;;C:\Users\Илья\AppData\Local\GitHubDesktop\bin;C:\Users\Илья\.dotnet\tools;C:\msys64\ucrt64\bin;C:\Program Files\LLVM\bin;C:\flutter\src\flutter\bin;C:\Android\SDK\platform-tools;C:\Android\SDK\emulator;;C:\Users\Илья\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
 cargo:rerun-if-env-changed=INCLUDE
 INCLUDE = None
 HOST = Some(x86_64-pc-windows-msvc)
@@ -68,7 +68,7 @@ curve25519_64_adx.c
 p256-nistz.c
 cargo:rustc-link-lib=static=ring_core_0_17_14_
 OPT_LEVEL = Some(0)
-OUT_DIR = Some(D:\quantum\quantum_server\target\debug\build\ring-1ecfe49a9e1ea2d8\out)
+OUT_DIR = Some(D:\quantum\Quantum\quantum_server\target\debug\build\ring-1ecfe49a9e1ea2d8\out)
 TARGET = Some(x86_64-pc-windows-msvc)
 cargo:rerun-if-env-changed=VCINSTALLDIR
 VCINSTALLDIR = None
@@ -82,7 +82,7 @@ cargo:rerun-if-env-changed=WindowsSDKVersion
 WindowsSDKVersion = None
 cargo:rerun-if-env-changed=LIB
 LIB = None
-PATH = Some(D:\quantum\quantum_server\target\debug\deps;D:\quantum\quantum_server\target\debug;C:\Users\Илья\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files (x86)\VMware\VMware Workstation\bin\;C:\Program Files\Microsoft MPI\Bin\;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files\Python311\Scripts\;C:\Program Files\Python311\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\nodejs\;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\;C:\Program Files\Git\cmd;C:\Program Files\dotnet\;C:\Program Files\PostgreSQL\17\bin;C:\Program Files\Redis\;C:\Windows\system32\config\systemprofile\AppData\Local\Microsoft\WindowsApps;;C:\Program Files\Docker\Docker\resources\bin;C:\Users\Илья\.cargo\bin;C:\Users\Илья\AppData\Local\Microsoft\WindowsApps;C:\Users\Илья\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\Илья\AppData\Roaming\npm;C:\Program Files\JetBrains\PyCharm Community Edition 2022.3.3\bin;;C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2023.2.4\bin;;C:\Users\Илья\AppData\Local\GitHubDesktop\bin;C:\Users\Илья\.dotnet\tools;C:\msys64\ucrt64\bin;C:\Program Files\LLVM\bin;C:\flutter\src\flutter\bin;C:\Android\SDK\platform-tools;C:\Android\SDK\emulator;;C:\Users\Илья\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+PATH = Some(D:\quantum\Quantum\quantum_server\target\debug\deps;D:\quantum\Quantum\quantum_server\target\debug;C:\Users\Илья\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files (x86)\VMware\VMware Workstation\bin\;C:\Program Files\Microsoft MPI\Bin\;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files\Python311\Scripts\;C:\Program Files\Python311\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\nodejs\;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\;C:\Program Files\Git\cmd;C:\Program Files\dotnet\;C:\Program Files\PostgreSQL\17\bin;C:\Program Files\Redis\;C:\Windows\system32\config\systemprofile\AppData\Local\Microsoft\WindowsApps;;C:\Program Files\Docker\Docker\resources\bin;C:\Strawberry\c\bin;C:\Strawberry\perl\site\bin;C:\Strawberry\perl\bin;C:\Users\Илья\.cargo\bin;C:\Users\Илья\AppData\Local\Microsoft\WindowsApps;C:\Users\Илья\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\Илья\AppData\Roaming\npm;C:\Program Files\JetBrains\PyCharm Community Edition 2022.3.3\bin;;C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2023.2.4\bin;;C:\Users\Илья\AppData\Local\GitHubDesktop\bin;C:\Users\Илья\.dotnet\tools;C:\msys64\ucrt64\bin;C:\Program Files\LLVM\bin;C:\flutter\src\flutter\bin;C:\Android\SDK\platform-tools;C:\Android\SDK\emulator;;C:\Users\Илья\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
 cargo:rerun-if-env-changed=INCLUDE
 INCLUDE = None
 HOST = Some(x86_64-pc-windows-msvc)
@@ -109,7 +109,7 @@ CFLAGS_x86_64-pc-windows-msvc = None
 CARGO_ENCODED_RUSTFLAGS = Some()
 constant_time_test.c
 cargo:rustc-link-lib=static=ring_core_0_17_14__test
-cargo:rustc-link-search=native=D:\quantum\quantum_server\target\debug\build\ring-1ecfe49a9e1ea2d8\out
+cargo:rustc-link-search=native=D:\quantum\Quantum\quantum_server\target\debug\build\ring-1ecfe49a9e1ea2d8\out
 cargo:rerun-if-changed=crypto\chacha\asm\chacha-armv4.pl
 cargo:rerun-if-changed=crypto\chacha\asm\chacha-armv8.pl
 cargo:rerun-if-changed=crypto\chacha\asm\chacha-x86.pl
