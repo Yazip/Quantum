@@ -4,6 +4,10 @@ use uuid::Uuid;
 use chrono::NaiveDateTime;
 use sqlx::PgPool;
 use bcrypt::{hash, DEFAULT_COST};
+use bcrypt::verify;
+use super::*;
+use dotenvy::dotenv;
+use crate::db::init_pool;
 
 #[derive(Debug, FromRow, Serialize)]
 pub struct User {
@@ -38,4 +42,36 @@ pub async fn create_user(new_user: NewUser, pool: &PgPool) -> Result<User, sqlx:
     .await?;
 
     Ok(user)
+}
+
+pub async fn find_user_by_username(username: &str, pool: &PgPool) -> Result<User, sqlx::Error> {
+    let user = sqlx::query_as::<_, User>(
+        r#"
+        SELECT * FROM users WHERE username = $1
+        "#,
+    )
+    .bind(username)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(user)
+}
+
+pub async fn authenticate_user(
+    username: &str,
+    password: &str,
+    pool: &PgPool,
+) -> Result<User, String> {
+    let user = find_user_by_username(username, pool)
+        .await
+        .map_err(|_| "Пользователь не найден".to_string())?;
+
+    let valid = verify(password, &user.password_hash)
+        .map_err(|_| "Ошибка при проверке пароля".to_string())?;
+
+    if valid {
+        Ok(user)
+    } else {
+        Err("Неверный пароль".to_string())
+    }
 }
