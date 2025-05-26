@@ -12,6 +12,8 @@ use chrono::{Utc, Duration};
 use serde_json::json;
 use sqlx::PgPool;
 use crate::db::message::{NewMessage, send_message};
+use crate::db::message::get_messages_for_chat;
+use uuid::Uuid;
 
 pub async fn run_ws_server(addr: &str, pool: PgPool) {
     let listener = TcpListener::bind(addr).await.expect("Failed to bind");
@@ -140,6 +142,38 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             }
                             Err(_) => {
                                 let _ = write.send(Message::Text(r#"{"error": "invalid message format"}"#.to_string())).await;
+                            }
+                        }
+                    }
+
+                    Some("get_messages") => {
+                        let Some(_) = &authenticated_user else {
+                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        let payload = &json_msg["payload"];
+                        let chat_id = payload["chat_id"].as_str().unwrap_or("");
+                        let limit = payload["limit"].as_i64().unwrap_or(50);
+
+                        match Uuid::parse_str(chat_id) {
+                            Ok(chat_uuid) => {
+                                match get_messages_for_chat(chat_uuid, limit, &pool).await {
+                                    Ok(messages) => {
+                                        let response = json!({
+                                            "status": "messages",
+                                            "messages": messages
+                                        });
+                                        let _ = write.send(Message::Text(response.to_string())).await;
+                                    }
+                                    Err(e) => {
+                                        let err = format!(r#"{{"error": "db_error", "detail": "{}"}}"#, e);
+                                        let _ = write.send(Message::Text(err)).await;
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                let _ = write.send(Message::Text(r#"{"error": "invalid chat_id"}"#.to_string())).await;
                             }
                         }
                     }

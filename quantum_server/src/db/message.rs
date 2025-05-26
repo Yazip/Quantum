@@ -41,3 +41,24 @@ pub async fn send_message(
 
     Ok(result)
 }
+
+pub async fn get_messages_for_chat(
+    chat_id: Uuid,
+    limit: i64,
+    pool: &PgPool,
+) -> Result<Vec<Message>, sqlx::Error> {
+    let messages = sqlx::query_as::<_, Message>(
+        r#"
+        SELECT * FROM messages
+        WHERE chat_id = $1 AND is_deleted = false
+        ORDER BY created_at DESC
+        LIMIT $2
+        "#,
+    )
+    .bind(chat_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(messages)
+}
