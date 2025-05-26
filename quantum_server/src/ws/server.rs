@@ -5,18 +5,39 @@ use std::net::SocketAddr;
 use futures_util::{StreamExt, SinkExt};
 use crate::auth;
 use std::env;
+use crate::db::user::{create_user, authenticate_user, NewUser};
+use jsonwebtoken::{encode, Header, EncodingKey};
+use crate::auth::Claims;
+use chrono::{Utc, Duration};
+use serde_json::json;
+use sqlx::PgPool;
 
-pub async fn run_ws_server(addr: &str) {
+pub async fn run_ws_server(addr: &str, pool: PgPool) {
     let listener = TcpListener::bind(addr).await.expect("Failed to bind");
 
     println!("WebSocket server running on {}", addr);
 
     while let Ok((stream, addr)) = listener.accept().await {
-        tokio::spawn(handle_connection(stream, addr));
+        tokio::spawn(handle_connection(stream, addr, pool.clone()));
     }
 }
 
-async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr) {
+fn generate_jwt(user_id: &str) -> String {
+    let secret = std::env::var("JWT_SECRET").unwrap_or("secret".to_string());
+
+    let claims = Claims {
+        sub: user_id.to_string(),
+        exp: (Utc::now() + Duration::hours(2)).timestamp() as usize,
+    };
+
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    ).unwrap()
+}
+
+async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool: PgPool) {
     let ws_stream = accept_async(stream).await.expect("WebSocket handshake failed");
 
     println!("New WebSocket connection from {}", addr);
@@ -41,6 +62,50 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr) {
                             }
                         }
                     }
+		    
+                    Some("register") => {
+                        // Пытаемся распарсить NewUser
+                        let payload = &json_msg["payload"];
+                        let new_user = serde_json::from_value::<NewUser>(payload.clone());
+
+                        match new_user {
+                            Ok(user_data) => {
+                                match create_user(user_data, &pool).await {
+                                    Ok(user) => {
+                                        let token = generate_jwt(&user.username);
+                                        let response = json!({ "status": "ok", "token": token });
+                                        let _ = write.send(Message::Text(response.to_string())).await;
+                                    }
+                                    Err(e) => {
+                                        let err = format!("{{\"error\": \"{}\"}}", e);
+                                        let _ = write.send(Message::Text(err)).await;
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                let _ = write.send(Message::Text("{\"error\": \"invalid payload\"}".to_string())).await;
+                            }
+                        }
+                    }
+
+                    Some("login") => {
+                        let payload = &json_msg["payload"];
+                        let username = payload["username"].as_str().unwrap_or("");
+                        let password = payload["password"].as_str().unwrap_or("");
+
+                        match authenticate_user(username, password, &pool).await {
+                            Ok(user) => {
+                                let token = generate_jwt(&user.username);
+                                let response = json!({ "status": "ok", "token": token });
+                                let _ = write.send(Message::Text(response.to_string())).await;
+                            }
+                            Err(msg) => {
+                                let err = format!("{{\"error\": \"{}\"}}", msg);
+                                let _ = write.send(Message::Text(err)).await;
+                            }
+                        }
+                    }
+
                     _ => {
                         match msg {
                             Ok(Message::Text(text)) => {
