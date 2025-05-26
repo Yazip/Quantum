@@ -11,6 +11,7 @@ use crate::auth::Claims;
 use chrono::{Utc, Duration};
 use serde_json::json;
 use sqlx::PgPool;
+use crate::db::message::{NewMessage, send_message};
 
 pub async fn run_ws_server(addr: &str, pool: PgPool) {
     let listener = TcpListener::bind(addr).await.expect("Failed to bind");
@@ -74,8 +75,8 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             Ok(user_data) => {
                                 match create_user(user_data, &pool).await {
                                     Ok(user) => {
-                                        let token = generate_jwt(&user.username);
-                                        authenticated_user = Some(user.username.clone());
+                                        authenticated_user = Some(user.id.to_string());
+					let token = generate_jwt(&user.id.to_string());
                                         let response = json!({ "status": "ok", "token": token });
                                         let _ = write.send(Message::Text(response.to_string())).await;
                                     }
@@ -98,8 +99,8 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                         match authenticate_user(username, password, &pool).await {
                             Ok(user) => {
-                                let token = generate_jwt(&user.username);
-                                authenticated_user = Some(user.username.clone());
+                                authenticated_user = Some(user.id.to_string());
+				let token = generate_jwt(&user.id.to_string());
                                 let response = json!({ "status": "ok", "token": token });
                                 let _ = write.send(Message::Text(response.to_string())).await;
                             }
@@ -110,28 +111,37 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                         }
                     }
 
-                    Some("send_message" | "edit_message" | "delete_message") => {
-                        // Проверка, авторизован ли пользователь
-                        let Some(user_id) = &authenticated_user else {
-                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
-                            continue;
-                        };
-
-                        // Здесь обрабатываем сообщение от user_id
-                    }
-
                     Some("send_message") => {
                         let Some(user_id) = &authenticated_user else {
                             let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
                             continue;
                         };
 
-                        let chat_id = json_msg["payload"]["chat_id"].as_str().unwrap_or("");
-                        let text = json_msg["payload"]["text"].as_str().unwrap_or("");
+                        let payload = &json_msg["payload"];
+                        let msg_data = serde_json::from_value::<NewMessage>(payload.clone());
 
-                        println!("{} отправил сообщение в чат {}: {}", user_id, chat_id, text);
-
-                        let _ = write.send(Message::Text(r#"{"status": "message_received"}"#.to_string())).await;
+                        match msg_data {
+                            Ok(msg) => {
+                                let user_uuid = sqlx::types::Uuid::parse_str(user_id).unwrap();
+                                match send_message(msg, user_uuid, &pool).await {
+                                    Ok(stored) => {
+                                        let response = json!({
+                                            "status": "message_saved",
+                                            "message_id": stored.id,
+                                            "timestamp": stored.created_at
+                                        });
+                                        let _ = write.send(Message::Text(response.to_string())).await;
+                                    }
+                                    Err(e) => {
+                                        let err = format!(r#"{{"error": "db_error", "detail": "{}"}}"#, e);
+                                        let _ = write.send(Message::Text(err)).await;
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                let _ = write.send(Message::Text(r#"{"error": "invalid message format"}"#.to_string())).await;
+                            }
+                        }
                     }
 
                     _ => {
