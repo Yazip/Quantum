@@ -1,1 +1,1 @@
-D:\quantum\quantum_server\target\debug\quantum_server.exe: D:\quantum\quantum_server\src\main.rs
+D:\quantum\Quantum\quantum_server\target\debug\quantum_server.exe: D:\quantum\Quantum\quantum_server\src\auth\mod.rs D:\quantum\Quantum\quantum_server\src\main.rs D:\quantum\Quantum\quantum_server\src\ws\mod.rs D:\quantum\Quantum\quantum_server\src\ws\server.rs
