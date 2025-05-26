@@ -38,6 +38,8 @@ fn generate_jwt(user_id: &str) -> String {
 }
 
 async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool: PgPool) {
+    let mut authenticated_user: Option<String> = None;
+
     let ws_stream = accept_async(stream).await.expect("WebSocket handshake failed");
 
     println!("New WebSocket connection from {}", addr);
@@ -73,6 +75,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                 match create_user(user_data, &pool).await {
                                     Ok(user) => {
                                         let token = generate_jwt(&user.username);
+                                        authenticated_user = Some(user.username.clone());
                                         let response = json!({ "status": "ok", "token": token });
                                         let _ = write.send(Message::Text(response.to_string())).await;
                                     }
@@ -96,6 +99,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                         match authenticate_user(username, password, &pool).await {
                             Ok(user) => {
                                 let token = generate_jwt(&user.username);
+                                authenticated_user = Some(user.username.clone());
                                 let response = json!({ "status": "ok", "token": token });
                                 let _ = write.send(Message::Text(response.to_string())).await;
                             }
@@ -104,6 +108,30 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                 let _ = write.send(Message::Text(err)).await;
                             }
                         }
+                    }
+
+                    Some("send_message" | "edit_message" | "delete_message") => {
+                        // Проверка, авторизован ли пользователь
+                        let Some(user_id) = &authenticated_user else {
+                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        // Здесь обрабатываем сообщение от user_id
+                    }
+
+                    Some("send_message") => {
+                        let Some(user_id) = &authenticated_user else {
+                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        let chat_id = json_msg["payload"]["chat_id"].as_str().unwrap_or("");
+                        let text = json_msg["payload"]["text"].as_str().unwrap_or("");
+
+                        println!("{} отправил сообщение в чат {}: {}", user_id, chat_id, text);
+
+                        let _ = write.send(Message::Text(r#"{"status": "message_received"}"#.to_string())).await;
                     }
 
                     _ => {
