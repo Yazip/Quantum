@@ -13,12 +13,16 @@ pub struct Message {
     pub created_at: NaiveDateTime,
     pub is_edited: bool,
     pub is_deleted: bool,
+    pub reply_to_id: Option<Uuid>,
+    pub forwarded_from: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct NewMessage {
     pub chat_id: Uuid,
     pub body: String,
+    pub reply_to_id: Option<Uuid>,
+    pub forwarded_from: Option<Uuid>,
 }
 
 pub async fn send_message(
@@ -28,14 +32,16 @@ pub async fn send_message(
 ) -> Result<Message, sqlx::Error> {
     let result = sqlx::query_as::<_, Message>(
         r#"
-        INSERT INTO messages (chat_id, sender_id, body)
-        VALUES ($1, $2, $3)
+        INSERT INTO messages (chat_id, sender_id, body, reply_to_id, forwarded_from)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING *
         "#,
     )
     .bind(msg.chat_id)
     .bind(sender_id)
     .bind(&msg.body)
+    .bind(msg.reply_to_id)
+    .bind(msg.forwarded_from)
     .fetch_one(pool)
     .await?;
 
@@ -111,4 +117,38 @@ pub async fn delete_message(
         .await?;
 
     Ok(())
+}
+
+pub async fn forward_message(
+    chat_id: Uuid,
+    original_message_id: Uuid,
+    sender_id: Uuid,
+    pool: &PgPool,
+) -> Result<Message, sqlx::Error> {
+    let original = sqlx::query!(
+        r#"
+        SELECT body, sender_id
+        FROM messages
+        WHERE id = $1
+        "#,
+        original_message_id
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let forwarded = sqlx::query_as::<_, Message>(
+        r#"
+        INSERT INTO messages (chat_id, sender_id, body, forwarded_from)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+        "#,
+    )
+    .bind(chat_id)
+    .bind(sender_id)
+    .bind(original.body)
+    .bind(original.sender_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(forwarded)
 }

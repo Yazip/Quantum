@@ -20,6 +20,8 @@ use serde_json;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use crate::db::message::{edit_message, delete_message};
+use crate::db::reaction::set_reaction;
+use crate::db::message::forward_message;
 
 pub async fn run_ws_server(addr: &str, pool: PgPool, redis: Arc<Mutex<Connection>>) {
     let listener = TcpListener::bind(addr).await.expect("Failed to bind");
@@ -249,6 +251,64 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                 }
                                 Err(e) => {
                                     let err = format!(r#"{{"error": "delete_failed", "detail": "{}"}}"#, e);
+                                    let _ = write.send(Message::Text(err)).await;
+                                }
+                            }
+                        }
+                    }
+
+                    Some("react") => {
+                        let Some(user_id) = &authenticated_user else {
+                            let _ = write.send(Message::Text(r#"{"error":"unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        let payload = &json_msg["payload"];
+                        let message_id = payload["message_id"].as_str().unwrap_or("");
+                        let emoji = payload["emoji"].as_str().unwrap_or("👍");
+
+                        if let Ok(msg_uuid) = Uuid::parse_str(message_id) {
+                            let user_uuid = Uuid::parse_str(user_id).unwrap();
+                            match set_reaction(msg_uuid, user_uuid, emoji.to_string(), &pool).await {
+                                Ok(_) => {
+                                    let _ = write.send(Message::Text(r#"{"status":"reaction_set"}"#.to_string())).await;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error":"reaction_failed","detail":"{}"}}"#, e);
+                                    let _ = write.send(Message::Text(err)).await;
+                                }
+                            }
+                        }
+                    }
+
+                    Some("forward_message") => {
+                        let Some(user_id) = &authenticated_user else {
+                            let _ = write.send(Message::Text(r#"{"error":"unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        let payload = &json_msg["payload"];
+                        let chat_id = payload["chat_id"].as_str().unwrap_or("");
+                        let original_id = payload["original_message_id"].as_str().unwrap_or("");
+
+                        if let (Ok(chat_uuid), Ok(orig_uuid)) = (
+                            Uuid::parse_str(chat_id),
+                            Uuid::parse_str(original_id),
+                        ) {
+                            let sender_uuid = Uuid::parse_str(user_id).unwrap();
+
+                            match forward_message(chat_uuid, orig_uuid, sender_uuid, &pool).await {
+                                Ok(msg) => {
+                                    let response = json!({
+                                        "status": "message_forwarded",
+                                        "message_id": msg.id,
+                                        "timestamp": msg.created_at,
+                                        "forwarded_from": msg.forwarded_from
+                                    });
+                                    let _ = write.send(Message::Text(response.to_string())).await;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error":"forward_failed","detail":"{}"}}"#, e);
                                     let _ = write.send(Message::Text(err)).await;
                                 }
                             }
