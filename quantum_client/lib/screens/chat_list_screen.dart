@@ -45,6 +45,7 @@ class ChatListScreen extends StatelessWidget {
     		    MaterialPageRoute(
       			builder: (_) => ChatScreen(
         		    chatTitle: chat["title"]!,
+			    chatId: chat["id"] ?? "d50bfa99-dffa-4fd1-ab3f-b0a74fdaf249", // Временный ID
         		    token: token,
       			),
     		    ),

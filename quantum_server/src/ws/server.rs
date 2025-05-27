@@ -73,6 +73,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                         match auth::verify_jwt(token, &secret) {
                             Ok(data) => {
                                 println!("User authenticated: {}", data.claims.sub);
+				authenticated_user = Some(data.claims.sub.clone());
                                 let _ = write.send(Message::Text(r#"{"status": "authenticated"}"#.into())).await;
                             }
                             Err(_) => {
