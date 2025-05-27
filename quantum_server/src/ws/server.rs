@@ -28,17 +28,22 @@ use crate::db::chat::remove_user_from_chat;
 use crate::db::chat::get_chat_members;
 use crate::db::chat::is_user_in_chat;
 use crate::db::user::user_exists;
-use tokio::sync::broadcast;
 use crate::db::user::get_username_by_id;
+use std::collections::HashMap;
+use futures_util::stream::SplitSink;
+use tokio_tungstenite::WebSocketStream;
+use tokio::net::TcpStream;
+
+type Clients = Arc<Mutex<HashMap<Uuid, Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>>>>;
 
 pub async fn run_ws_server(addr: &str, pool: PgPool, redis: Arc<Mutex<Connection>>) {
-    let (tx, _) = broadcast::channel::<String>(100);
     let listener = TcpListener::bind(addr).await.expect("Failed to bind");
+    let clients: Clients = Arc::new(Mutex::new(HashMap::new()));
 
     println!("WebSocket server running on {}", addr);
 
     while let Ok((stream, addr)) = listener.accept().await {
-        tokio::spawn(handle_connection(stream, addr, pool.clone(), Arc::clone(&redis), tx.clone()));
+        tokio::spawn(handle_connection(stream, addr, pool.clone(), Arc::clone(&redis), clients.clone()));
     }
 }
 
@@ -57,7 +62,7 @@ fn generate_jwt(user_id: &str) -> String {
     ).unwrap()
 }
 
-async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool: PgPool, redis: Arc<Mutex<Connection>>, tx: broadcast::Sender<String>) {
+async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool: PgPool, redis: Arc<Mutex<Connection>>, clients: Clients) {
     let mut authenticated_user: Option<String> = None;
 
     let ws_stream = accept_async(stream).await.expect("WebSocket handshake failed");
@@ -66,15 +71,6 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
     let (mut write, mut read) = ws_stream.split();
     let write = Arc::new(Mutex::new(write));
-
-    let mut rx = tx.subscribe();
-
-    let write_clone = write.clone();
-    tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
-            let _ = write_clone.lock().await.send(Message::Text(msg)).await;
-        }
-    });
 
     while let Some(msg) = read.next().await {
         if let Ok(Message::Text(ref text)) = msg {
@@ -86,7 +82,9 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                         match auth::verify_jwt(token, &secret) {
                             Ok(data) => {
                                 println!("User authenticated: {}", data.claims.sub);
-				authenticated_user = Some(data.claims.sub.clone());
+                                let user_id = Uuid::parse_str(&data.claims.sub).unwrap();
+				                authenticated_user = Some(data.claims.sub.clone());
+                                clients.lock().await.insert(user_id, write.clone());
                                 let _ = write.lock().await.send(Message::Text(r#"{"status": "authenticated"}"#.into())).await;
                             }
                             Err(_) => {
@@ -182,14 +180,22 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                             Err(_) => "Неизвестно".to_string(),
                                         };
 
-                                        // Рассылка всем подключённым
-                                        let broadcast_msg = json!({
+                                        let payload = json!({
                                             "type": "new_message",
                                             "chat_id": stored.chat_id,
                                             "from": from_username,
                                             "body": stored.body
                                         });
-                                        let _ = tx.send(broadcast_msg.to_string());
+                                        let payload_string = payload.to_string();
+
+                                        // получаем участников чата
+                                        let members = get_chat_members(stored.chat_id, &pool).await.unwrap_or_default();
+
+                                        for user_id in members {
+                                            if let Some(conn) = clients.lock().await.get(&user_id) {
+                                                let _ = conn.lock().await.send(Message::Text(payload_string.clone())).await;
+                                            }
+                                        }
                                     }
                                     Err(e) => {
                                         let err = format!(r#"{{"error": "db_error", "detail": "{}"}}"#, e);

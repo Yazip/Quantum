@@ -48,15 +48,12 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       if (data["status"] == "message_saved") {
-        setState(() {
-          _messages.add("[Вы] ${_controller.text}");
-        });
         _controller.clear();
       }
 
       if (data["type"] == "new_message") {
-          final body = data["body"] ?? "";
-          final from = data["from"] ?? "Неизвестно";
+          final body = data["body"];
+          final from = data["from"];
 
           setState(() {
               _messages.add("$from: $body");
