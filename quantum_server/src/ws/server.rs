@@ -12,7 +12,6 @@ use chrono::{Utc, Duration};
 use serde_json::json;
 use sqlx::PgPool;
 use crate::db::message::{NewMessage, send_message};
-use crate::db::message::get_messages_for_chat;
 use uuid::Uuid;
 use redis::aio::Connection;
 use redis::AsyncCommands;
@@ -33,6 +32,8 @@ use std::collections::HashMap;
 use futures_util::stream::SplitSink;
 use tokio_tungstenite::WebSocketStream;
 use tokio::net::TcpStream;
+use crate::db::message::get_chat_messages;
+use crate::db::chat::get_user_chats;
 
 type Clients = Arc<Mutex<HashMap<Uuid, Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>>>>;
 
@@ -168,6 +169,8 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                                 match send_message(msg, user_uuid, &pool).await {
                                     Ok(stored) => {
+					let cache_key = format!("chat:{}:messages", stored.chat_id);
+					let _: () = redis.lock().await.del(&cache_key).await.unwrap_or(());
                                         let response = json!({
                                             "status": "message_saved",
                                             "message_id": stored.id,
@@ -216,50 +219,49 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                         };
 
                         let payload = &json_msg["payload"];
-                        let chat_id = payload["chat_id"].as_str().unwrap_or("");
+                        let chat_id_str = payload["chat_id"].as_str().unwrap_or("");
+                        let chat_id = Uuid::parse_str(chat_id_str).unwrap_or_default();
                         let limit = payload["limit"].as_i64().unwrap_or(50);
 
-                        match Uuid::parse_str(chat_id) {
-                            Ok(chat_uuid) => {
-				                let mut redis_conn = redis.lock().await;
-                                let cache_key = format!("chat:{}:messages", chat_id);
+                        let user_uuid = Uuid::parse_str(authenticated_user.as_ref().unwrap()).unwrap();
 
-                                // Пытаемся получить сообщения из Redis
-                                match redis_conn.get::<_, String>(&cache_key).await {
-                                    Ok(cached_json) => {
-                                        let _ = write.lock().await.send(Message::Text(cached_json)).await;
-                                        continue;
-                                    }
-                                    Err(_) => {
-                                        // нет кэша — продолжаем к БД
-                                    }
-                                }
+                        // Проверяем, состоит ли пользователь в чате
+                        if !is_user_in_chat(chat_id, user_uuid, &pool).await.unwrap_or(false) {
+                            let _ = write.lock().await.send(Message::Text(r#"{"error": "not_in_chat"}"#.into())).await;
+                            return;
+                        }
 
-                                // Загружаем из PostgreSQL
-                                match get_messages_for_chat(chat_uuid, limit, &pool).await {
-                                    Ok(messages) => {
-                                        let response_json = json!({
-                                            "status": "messages",
-                                            "messages": messages
-                                        });
+                        let mut redis_conn = redis.lock().await;
+                        let cache_key = format!("chat:{}:messages", chat_id);
 
-                                        let response_string = serde_json::to_string(&response_json)
-                                            .expect("Failed to serialize response");
+                        // Пробуем получить из кэша
+                        if let Ok(cached_json) = redis_conn.get::<_, String>(&cache_key).await {
+                            if cached_json.contains("\"messages\":[]") {
+        			// Пропускаем кэш если он пустой
+    			    } else {
+        			let _ = write.lock().await.send(Message::Text(cached_json)).await;
+        			continue;
+    			    }
+                        }
 
-                                        // Сохраняем в Redis на 60 секунд
-                                        let _: () = redis_conn.set_ex(&cache_key, &response_string, 180).await.unwrap();
+                        match get_chat_messages(chat_id, &pool).await {
+                            Ok(messages) => {
+                                let response_json = json!({
+                                    "type": "message_history",
+				    "chat_id": chat_id,
+                                    "messages": messages
+                                });
 
-                                        // Отправляем клиенту
-                                        let _ = write.lock().await.send(Message::Text(response_json.to_string())).await;
-                                    }
-                                    Err(e) => {
-                                        let err = format!(r#"{{"error": "db_error", "detail": "{}"}}"#, e);
-                                        let _ = write.lock().await.send(Message::Text(err)).await;
-                                    }
-                                }
+                                let response_string = serde_json::to_string(&response_json).unwrap();
+
+                                // Кэшируем на 3 минуты
+                                let _: () = redis_conn.set_ex(&cache_key, &response_string, 180).await.unwrap();
+
+                                let _ = write.lock().await.send(Message::Text(response_string)).await;
                             }
-                            Err(_) => {
-                                let _ = write.lock().await.send(Message::Text(r#"{"error": "invalid chat_id"}"#.to_string())).await;
+                            Err(e) => {
+                                let err = format!(r#"{{"error": "db_error", "detail": "{}"}}"#, e);
+                                let _ = write.lock().await.send(Message::Text(err)).await;
                             }
                         }
                     }
@@ -527,6 +529,29 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                     let err = format!(r#"{{"error":"get_members_failed","detail":"{}"}}"#, e);
                                     let _ = write.lock().await.send(Message::Text(err)).await;
                                 }
+                            }
+                        }
+                    }
+
+                    Some("get_my_chats") => {
+                        let Some(user_id_str) = &authenticated_user else {
+                            let _ = write.lock().await.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        let user_uuid = Uuid::parse_str(user_id_str).unwrap();
+
+                        match get_user_chats(user_uuid, &pool).await {
+                            Ok(chats) => {
+                                let response = json!({
+                                    "type": "chat_list",
+                                    "chats": chats
+                                });
+                                let _ = write.lock().await.send(Message::Text(response.to_string())).await;
+                            }
+                            Err(e) => {
+                                let err = format!(r#"{{"error": "db_error", "detail": "{}"}}"#, e);
+                                let _ = write.lock().await.send(Message::Text(err)).await;
                             }
                         }
                     }

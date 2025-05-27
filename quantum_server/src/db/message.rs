@@ -25,6 +25,13 @@ pub struct NewMessage {
     pub forwarded_from: Option<Uuid>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ChatMessage {
+    pub from: String,
+    pub body: String,
+    pub created_at: chrono::NaiveDateTime,
+}
+
 pub async fn send_message(
     msg: NewMessage,
     sender_id: Uuid,
@@ -46,27 +53,6 @@ pub async fn send_message(
     .await?;
 
     Ok(result)
-}
-
-pub async fn get_messages_for_chat(
-    chat_id: Uuid,
-    limit: i64,
-    pool: &PgPool,
-) -> Result<Vec<Message>, sqlx::Error> {
-    let messages = sqlx::query_as::<_, Message>(
-        r#"
-        SELECT * FROM messages
-        WHERE chat_id = $1 AND is_deleted = false
-        ORDER BY created_at DESC
-        LIMIT $2
-        "#,
-    )
-    .bind(chat_id)
-    .bind(limit)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(messages)
 }
 
 pub async fn edit_message(
@@ -151,4 +137,28 @@ pub async fn forward_message(
     .await?;
 
     Ok(forwarded)
+}
+
+pub async fn get_chat_messages(chat_id: Uuid, pool: &PgPool) -> Result<Vec<ChatMessage>, sqlx::Error> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT u.username AS from, m.body, m.created_at
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.chat_id = $1 AND m.is_deleted = false
+        ORDER BY m.created_at ASC
+        "#,
+        chat_id
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| ChatMessage {
+            from: r.from,
+            body: r.body,
+            created_at: r.created_at.expect("created_at must not be NULL"),
+        })
+        .collect())
 }

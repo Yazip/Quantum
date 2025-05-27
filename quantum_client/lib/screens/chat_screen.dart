@@ -19,14 +19,16 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  late String chatId;
   bool isAuthenticated = false;
   final TextEditingController _controller = TextEditingController();
-  final List<String> _messages = [];
+  List<String> _messages = [];
   late WebSocketChannel _channel;
 
   @override
   void initState() {
     super.initState();
+    chatId = widget.chatId;
 
     _channel = WebSocketChannel.connect(
       Uri.parse('ws://localhost:9001'),
@@ -36,6 +38,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _channel.sink.add(jsonEncode({
       "type": "auth",
       "token": widget.token,
+    }));
+
+    _channel.sink.add(jsonEncode({
+        "type": "get_messages",
+        "payload": {
+            "chat_id": widget.chatId
+        }
     }));
 
     _channel.stream.listen((message) {
@@ -54,11 +63,24 @@ class _ChatScreenState extends State<ChatScreen> {
       if (data["type"] == "new_message") {
           final body = data["body"];
           final from = data["from"];
+	  final chatIdFromServer = data["chat_id"];
 
-          setState(() {
-              _messages.add("$from: $body");
-          });
-        }
+	  if (chatIdFromServer == widget.chatId) {
+              setState(() {
+                  _messages.add("$from: $body");
+              });
+	  }
+      }
+
+      if (data["type"] == "message_history") {
+          final messages = data["messages"] as List;
+	  final chatIdFromServer = data["chat_id"];
+  	  if (chatIdFromServer == widget.chatId) {
+              setState(() {
+                  _messages = messages.map((m) => "${m['from']}: ${m['body']}").toList();
+              });
+	  }
+      }
 
       if (data["error"] != null) {
     	  print("Ошибка от сервера: ${data["error"]}");

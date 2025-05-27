@@ -18,6 +18,13 @@ pub struct NewChat {
     pub chat_type: String, // "private" или "group"
 }
 
+#[derive(Debug, Serialize)]
+pub struct UserChat {
+    pub id: Uuid,
+    pub name: Option<String>,
+    pub chat_type: String,
+}
+
 pub async fn create_group_chat(
     name: String,
     creator_id: Uuid,
@@ -126,4 +133,21 @@ pub async fn is_user_in_chat(
     .await?;
 
     Ok(record.is_some())
+}
+
+pub async fn get_user_chats(user_id: Uuid, pool: &PgPool) -> Result<Vec<UserChat>, sqlx::Error> {
+    let rows = sqlx::query_as!(
+        UserChat,
+        r#"
+        SELECT c.id, c.name, c.chat_type
+        FROM chats c
+        JOIN chat_members m ON c.id = m.chat_id
+        WHERE m.user_id = $1
+        "#,
+        user_id
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows)
 }

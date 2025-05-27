@@ -1,19 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'dart:convert';
 import 'chat_screen.dart';
 
-class ChatListScreen extends StatelessWidget {
+class ChatListScreen extends StatefulWidget {
   final String token;
 
-  const ChatListScreen({super.key, required this.token});
+  const ChatListScreen({Key? key, required this.token}) : super(key: key);
+
+  @override
+  State<ChatListScreen> createState() => _ChatListScreenState();
+}
+
+class _ChatListScreenState extends State<ChatListScreen> {
+  late WebSocketChannel _channel;
+  List<Map<String, dynamic>> _chats = [];
+
+  @override
+  void initState() {
+    super.initState();
+
+    _channel = WebSocketChannel.connect(Uri.parse('ws://localhost:9001'));
+
+    _channel.stream.listen((event) {
+      final data = jsonDecode(event);
+      if (data["status"] == "authenticated") {
+        _channel.sink.add(jsonEncode({"type": "get_my_chats"}));
+      }
+
+      if (data["type"] == "chat_list") {
+        setState(() {
+          _chats = List<Map<String, dynamic>>.from(data["chats"]);
+        });
+      }
+    });
+
+    // Авторизуемся
+    _channel.sink.add(jsonEncode({
+      "type": "auth",
+      "token": widget.token,
+    }));
+  }
+
+  @override
+  void dispose() {
+    _channel.sink.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final chats = [
-      {"title": "ПИ-22", "lastMessage": "mx покажи йорика"},
-      {"title": "Саня Питон", "lastMessage": "здарова"},
-      {"title": "Строевая кошка", "lastMessage": "Шагом марш!"},
-    ];
-
     return Scaffold(
       appBar: AppBar(
         title: const Text("Quantum — Чаты"),
@@ -21,9 +57,9 @@ class ChatListScreen extends StatelessWidget {
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(12),
-        itemCount: chats.length,
+        itemCount: _chats.length,
         itemBuilder: (context, index) {
-          final chat = chats[index];
+          final chat = _chats[index];
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 8),
             shape: RoundedRectangleBorder(
@@ -31,25 +67,21 @@ class ChatListScreen extends StatelessWidget {
             ),
             child: ListTile(
               title: Text(
-                chat["title"]!,
+                chat["name"],
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
               ),
-              subtitle: Text(
-                chat["lastMessage"]!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              subtitle: Text(chat["chat_type"]),
               onTap: () {
                 Navigator.push(
-    		    context,
-    		    MaterialPageRoute(
-      			builder: (_) => ChatScreen(
-        		    chatTitle: chat["title"]!,
-			    chatId: chat["id"] ?? "d50bfa99-dffa-4fd1-ab3f-b0a74fdaf249", // Временный ID
-        		    token: token,
-      			),
-    		    ),
-  		);
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatScreen(
+                      chatTitle: chat["name"],
+                      chatId: chat["id"],
+                      token: widget.token,
+                    ),
+                  ),
+                );
               },
             ),
           );
