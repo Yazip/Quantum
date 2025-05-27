@@ -28,14 +28,17 @@ use crate::db::chat::remove_user_from_chat;
 use crate::db::chat::get_chat_members;
 use crate::db::chat::is_user_in_chat;
 use crate::db::user::user_exists;
+use tokio::sync::broadcast;
+use crate::db::user::get_username_by_id;
 
 pub async fn run_ws_server(addr: &str, pool: PgPool, redis: Arc<Mutex<Connection>>) {
+    let (tx, _) = broadcast::channel::<String>(100);
     let listener = TcpListener::bind(addr).await.expect("Failed to bind");
 
     println!("WebSocket server running on {}", addr);
 
     while let Ok((stream, addr)) = listener.accept().await {
-        tokio::spawn(handle_connection(stream, addr, pool.clone(), Arc::clone(&redis)));
+        tokio::spawn(handle_connection(stream, addr, pool.clone(), Arc::clone(&redis), tx.clone()));
     }
 }
 
@@ -54,7 +57,7 @@ fn generate_jwt(user_id: &str) -> String {
     ).unwrap()
 }
 
-async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool: PgPool, redis: Arc<Mutex<Connection>>) {
+async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool: PgPool, redis: Arc<Mutex<Connection>>, tx: broadcast::Sender<String>) {
     let mut authenticated_user: Option<String> = None;
 
     let ws_stream = accept_async(stream).await.expect("WebSocket handshake failed");
@@ -62,6 +65,16 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
     println!("New WebSocket connection from {}", addr);
 
     let (mut write, mut read) = ws_stream.split();
+    let write = Arc::new(Mutex::new(write));
+
+    let mut rx = tx.subscribe();
+
+    let write_clone = write.clone();
+    tokio::spawn(async move {
+        while let Ok(msg) = rx.recv().await {
+            let _ = write_clone.lock().await.send(Message::Text(msg)).await;
+        }
+    });
 
     while let Some(msg) = read.next().await {
         if let Ok(Message::Text(ref text)) = msg {
@@ -74,10 +87,10 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             Ok(data) => {
                                 println!("User authenticated: {}", data.claims.sub);
 				authenticated_user = Some(data.claims.sub.clone());
-                                let _ = write.send(Message::Text(r#"{"status": "authenticated"}"#.into())).await;
+                                let _ = write.lock().await.send(Message::Text(r#"{"status": "authenticated"}"#.into())).await;
                             }
                             Err(_) => {
-                                let _ = write.send(Message::Text(r#"{"error": "invalid_token"}"#.into())).await;
+                                let _ = write.lock().await.send(Message::Text(r#"{"error": "invalid_token"}"#.into())).await;
                                 break;
                             }
                         }
@@ -95,16 +108,16 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                         authenticated_user = Some(user.id.to_string());
 					let token = generate_jwt(&user.id.to_string());
                                         let response = json!({ "status": "ok", "token": token });
-                                        let _ = write.send(Message::Text(response.to_string())).await;
+                                        let _ = write.lock().await.send(Message::Text(response.to_string())).await;
                                     }
                                     Err(e) => {
                                         let err = format!("{{\"error\": \"{}\"}}", e);
-                                        let _ = write.send(Message::Text(err)).await;
+                                        let _ = write.lock().await.send(Message::Text(err)).await;
                                     }
                                 }
                             }
                             Err(_) => {
-                                let _ = write.send(Message::Text("{\"error\": \"invalid payload\"}".to_string())).await;
+                                let _ = write.lock().await.send(Message::Text("{\"error\": \"invalid payload\"}".to_string())).await;
                             }
                         }
                     }
@@ -119,18 +132,18 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                 authenticated_user = Some(user.id.to_string());
 				let token = generate_jwt(&user.id.to_string());
                                 let response = json!({ "status": "ok", "token": token });
-                                let _ = write.send(Message::Text(response.to_string())).await;
+                                let _ = write.lock().await.send(Message::Text(response.to_string())).await;
                             }
                             Err(msg) => {
                                 let err = format!("{{\"error\": \"{}\"}}", msg);
-                                let _ = write.send(Message::Text(err)).await;
+                                let _ = write.lock().await.send(Message::Text(err)).await;
                             }
                         }
                     }
 
                     Some("send_message") => {
                         let Some(user_id) = &authenticated_user else {
-                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            let _ = write.lock().await.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
                             continue;
                         };
 
@@ -144,12 +157,12 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                                 match is_user_in_chat(chat_uuid, user_uuid, &pool).await {
                                     Ok(false) => {
-                                        let _ = write.send(Message::Text(r#"{"error": "not_in_chat"}"#.to_string())).await;
+                                        let _ = write.lock().await.send(Message::Text(r#"{"error": "not_in_chat"}"#.to_string())).await;
                                         continue;
                                     }
                                     Err(e) => {
                                         let err = format!(r#"{{"error":"check_failed","detail":"{}"}}"#, e);
-                                        let _ = write.send(Message::Text(err)).await;
+                                        let _ = write.lock().await.send(Message::Text(err)).await;
                                         continue;
                                     }
                                     _ => {}
@@ -162,23 +175,37 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                             "message_id": stored.id,
                                             "timestamp": stored.created_at
                                         });
-                                        let _ = write.send(Message::Text(response.to_string())).await;
+                                        let _ = write.lock().await.send(Message::Text(response.to_string())).await;
+
+                                        let from_username = match get_username_by_id(&user_uuid, &pool).await {
+                                            Ok(name) => name,
+                                            Err(_) => "Неизвестно".to_string(),
+                                        };
+
+                                        // Рассылка всем подключённым
+                                        let broadcast_msg = json!({
+                                            "type": "new_message",
+                                            "chat_id": stored.chat_id,
+                                            "from": from_username,
+                                            "body": stored.body
+                                        });
+                                        let _ = tx.send(broadcast_msg.to_string());
                                     }
                                     Err(e) => {
                                         let err = format!(r#"{{"error": "db_error", "detail": "{}"}}"#, e);
-                                        let _ = write.send(Message::Text(err)).await;
+                                        let _ = write.lock().await.send(Message::Text(err)).await;
                                     }
                                 }
                             }
                             Err(_) => {
-                                let _ = write.send(Message::Text(r#"{"error": "invalid message format"}"#.to_string())).await;
+                                let _ = write.lock().await.send(Message::Text(r#"{"error": "invalid message format"}"#.to_string())).await;
                             }
                         }
                     }
 
                     Some("get_messages") => {
                         let Some(_) = &authenticated_user else {
-                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            let _ = write.lock().await.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
                             continue;
                         };
 
@@ -194,7 +221,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                 // Пытаемся получить сообщения из Redis
                                 match redis_conn.get::<_, String>(&cache_key).await {
                                     Ok(cached_json) => {
-                                        let _ = write.send(Message::Text(cached_json)).await;
+                                        let _ = write.lock().await.send(Message::Text(cached_json)).await;
                                         continue;
                                     }
                                     Err(_) => {
@@ -217,23 +244,23 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                         let _: () = redis_conn.set_ex(&cache_key, &response_string, 180).await.unwrap();
 
                                         // Отправляем клиенту
-                                        let _ = write.send(Message::Text(response_json.to_string())).await;
+                                        let _ = write.lock().await.send(Message::Text(response_json.to_string())).await;
                                     }
                                     Err(e) => {
                                         let err = format!(r#"{{"error": "db_error", "detail": "{}"}}"#, e);
-                                        let _ = write.send(Message::Text(err)).await;
+                                        let _ = write.lock().await.send(Message::Text(err)).await;
                                     }
                                 }
                             }
                             Err(_) => {
-                                let _ = write.send(Message::Text(r#"{"error": "invalid chat_id"}"#.to_string())).await;
+                                let _ = write.lock().await.send(Message::Text(r#"{"error": "invalid chat_id"}"#.to_string())).await;
                             }
                         }
                     }
 
                     Some("edit_message") => {
                         let Some(user_id) = &authenticated_user else {
-                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            let _ = write.lock().await.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
                             continue;
                         };
 
@@ -245,11 +272,11 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             let user_uuid = Uuid::parse_str(user_id).unwrap();
                             match edit_message(msg_uuid, user_uuid, new_body.to_string(), &pool).await {
                                 Ok(_) => {
-                                    let _ = write.send(Message::Text(r#"{"status": "message_edited"}"#.to_string())).await;
+                                    let _ = write.lock().await.send(Message::Text(r#"{"status": "message_edited"}"#.to_string())).await;
                                 }
                                 Err(e) => {
                                     let err = format!(r#"{{"error": "edit_failed", "detail": "{}"}}"#, e);
-                                    let _ = write.send(Message::Text(err)).await;
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
                                 }
                             }
                         }
@@ -257,7 +284,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                     Some("delete_message") => {
                         let Some(user_id) = &authenticated_user else {
-                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            let _ = write.lock().await.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
                             continue;
                         };
 
@@ -269,11 +296,11 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             let user_uuid = Uuid::parse_str(user_id).unwrap();
                             match delete_message(msg_uuid, user_uuid, for_all, &pool).await {
                                 Ok(_) => {
-                                    let _ = write.send(Message::Text(r#"{"status": "message_deleted"}"#.to_string())).await;
+                                    let _ = write.lock().await.send(Message::Text(r#"{"status": "message_deleted"}"#.to_string())).await;
                                 }
                                 Err(e) => {
                                     let err = format!(r#"{{"error": "delete_failed", "detail": "{}"}}"#, e);
-                                    let _ = write.send(Message::Text(err)).await;
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
                                 }
                             }
                         }
@@ -281,7 +308,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                     Some("react") => {
                         let Some(user_id) = &authenticated_user else {
-                            let _ = write.send(Message::Text(r#"{"error":"unauthorized"}"#.to_string())).await;
+                            let _ = write.lock().await.send(Message::Text(r#"{"error":"unauthorized"}"#.to_string())).await;
                             continue;
                         };
 
@@ -293,11 +320,11 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             let user_uuid = Uuid::parse_str(user_id).unwrap();
                             match set_reaction(msg_uuid, user_uuid, emoji.to_string(), &pool).await {
                                 Ok(_) => {
-                                    let _ = write.send(Message::Text(r#"{"status":"reaction_set"}"#.to_string())).await;
+                                    let _ = write.lock().await.send(Message::Text(r#"{"status":"reaction_set"}"#.to_string())).await;
                                 }
                                 Err(e) => {
                                     let err = format!(r#"{{"error":"reaction_failed","detail":"{}"}}"#, e);
-                                    let _ = write.send(Message::Text(err)).await;
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
                                 }
                             }
                         }
@@ -305,7 +332,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                     Some("forward_message") => {
                         let Some(user_id) = &authenticated_user else {
-                            let _ = write.send(Message::Text(r#"{"error":"unauthorized"}"#.to_string())).await;
+                            let _ = write.lock().await.send(Message::Text(r#"{"error":"unauthorized"}"#.to_string())).await;
                             continue;
                         };
 
@@ -327,11 +354,11 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                         "timestamp": msg.created_at,
                                         "forwarded_from": msg.forwarded_from
                                     });
-                                    let _ = write.send(Message::Text(response.to_string())).await;
+                                    let _ = write.lock().await.send(Message::Text(response.to_string())).await;
                                 }
                                 Err(e) => {
                                     let err = format!(r#"{{"error":"forward_failed","detail":"{}"}}"#, e);
-                                    let _ = write.send(Message::Text(err)).await;
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
                                 }
                             }
                         }
@@ -339,7 +366,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                     Some("create_chat") => {
                         let Some(user_id) = &authenticated_user else {
-                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            let _ = write.lock().await.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
                             continue;
                         };
 
@@ -362,18 +389,18 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                     "status": "chat_created",
                                     "chat_id": chat_id
                                 });
-                                let _ = write.send(Message::Text(response.to_string())).await;
+                                let _ = write.lock().await.send(Message::Text(response.to_string())).await;
                             }
                             Err(e) => {
                                 let err = format!(r#"{{"error":"create_chat_failed","detail":"{}"}}"#, e);
-                                let _ = write.send(Message::Text(err)).await;
+                                let _ = write.lock().await.send(Message::Text(err)).await;
                             }
                         }
                     }
 
                     Some("add_to_chat") => {
                         let Some(sender_id) = &authenticated_user else {
-                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            let _ = write.lock().await.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
                             continue;
                         };
 
@@ -391,12 +418,12 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                     // Проверяем, существует ли указанный пользователь
                                     match user_exists(user_uuid, &pool).await {
                                         Ok(false) => {
-                                            let _ = write.send(Message::Text(r#"{"error": "user_not_found"}"#.to_string())).await;
+                                            let _ = write.lock().await.send(Message::Text(r#"{"error": "user_not_found"}"#.to_string())).await;
                                             continue;
                                         }
                                         Err(e) => {
                                             let err = format!(r#"{{"error":"user_check_failed","detail":"{}"}}"#, e);
-                                            let _ = write.send(Message::Text(err)).await;
+                                            let _ = write.lock().await.send(Message::Text(err)).await;
                                             continue;
                                         }
                                         _ => {}
@@ -404,20 +431,20 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                                     match add_user_to_chat(chat_uuid, user_uuid, &pool).await {
                                         Ok(_) => {
-                                            let _ = write.send(Message::Text(r#"{"status": "user_added"}"#.to_string())).await;
+                                            let _ = write.lock().await.send(Message::Text(r#"{"status": "user_added"}"#.to_string())).await;
                                         }
                                         Err(e) => {
                                             let err = format!(r#"{{"error":"add_failed","detail":"{}"}}"#, e);
-                                            let _ = write.send(Message::Text(err)).await;
+                                            let _ = write.lock().await.send(Message::Text(err)).await;
                                         }
                                     }
                                 }
                                 Ok(false) => {
-                                    let _ = write.send(Message::Text(r#"{"error":"not_in_chat"}"#.to_string())).await;
+                                    let _ = write.lock().await.send(Message::Text(r#"{"error":"not_in_chat"}"#.to_string())).await;
                                 }
                                 Err(e) => {
                                     let err = format!(r#"{{"error":"check_failed","detail":"{}"}}"#, e);
-                                    let _ = write.send(Message::Text(err)).await;
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
                                 }
                             }
                         }
@@ -425,7 +452,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                     Some("remove_from_chat") => {
                         let Some(sender_id) = &authenticated_user else {
-                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            let _ = write.lock().await.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
                             continue;
                         };
 
@@ -440,12 +467,12 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             // Проверяем, существует ли пользователь
                             match user_exists(user_uuid, &pool).await {
                                 Ok(false) => {
-                                    let _ = write.send(Message::Text(r#"{"error": "user_not_found"}"#.to_string())).await;
+                                    let _ = write.lock().await.send(Message::Text(r#"{"error": "user_not_found"}"#.to_string())).await;
                                     continue;
                                 }
                                 Err(e) => {
                                     let err = format!(r#"{{"error":"user_check_failed","detail":"{}"}}"#, e);
-                                    let _ = write.send(Message::Text(err)).await;
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
                                     continue;
                                 }
                                 _ => {}
@@ -454,12 +481,12 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             // Проверяем, есть ли он в чате
                             match is_user_in_chat(chat_uuid, user_uuid, &pool).await {
                                 Ok(false) => {
-                                    let _ = write.send(Message::Text(r#"{"error": "user_not_in_chat"}"#.to_string())).await;
+                                    let _ = write.lock().await.send(Message::Text(r#"{"error": "user_not_in_chat"}"#.to_string())).await;
                                     continue;
                                 }
                                 Err(e) => {
                                     let err = format!(r#"{{"error":"chat_check_failed","detail":"{}"}}"#, e);
-                                    let _ = write.send(Message::Text(err)).await;
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
                                     continue;
                                 }
                                 _ => {}
@@ -467,11 +494,11 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                             match remove_user_from_chat(chat_uuid, user_uuid, &pool).await {
                                 Ok(_) => {
-                                    let _ = write.send(Message::Text(r#"{"status": "user_removed"}"#.to_string())).await;
+                                    let _ = write.lock().await.send(Message::Text(r#"{"status": "user_removed"}"#.to_string())).await;
                                 }
                                 Err(e) => {
                                     let err = format!(r#"{{"error":"remove_failed","detail":"{}"}}"#, e);
-                                    let _ = write.send(Message::Text(err)).await;
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
                                 }
                             }
                         }
@@ -488,11 +515,11 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                         "status": "members_list",
                                         "members": members
                                     });
-                                    let _ = write.send(Message::Text(response.to_string())).await;
+                                    let _ = write.lock().await.send(Message::Text(response.to_string())).await;
                                 }
                                 Err(e) => {
                                     let err = format!(r#"{{"error":"get_members_failed","detail":"{}"}}"#, e);
-                                    let _ = write.send(Message::Text(err)).await;
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
                                 }
                             }
                         }
@@ -503,7 +530,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             Ok(Message::Text(text)) => {
                                 println!("Received: {}", text);
                                 let response = format!("Echo: {}", text);
-                                let _ = write.send(Message::Text(response)).await;
+                                let _ = write.lock().await.send(Message::Text(response)).await;
                             }
                             Ok(Message::Binary(_)) => {}
                             Ok(Message::Close(_)) => break,

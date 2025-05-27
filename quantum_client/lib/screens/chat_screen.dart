@@ -54,6 +54,15 @@ class _ChatScreenState extends State<ChatScreen> {
         _controller.clear();
       }
 
+      if (data["type"] == "new_message") {
+          final body = data["body"] ?? "";
+          final from = data["from"] ?? "Неизвестно";
+
+          setState(() {
+              _messages.add("$from: $body");
+          });
+        }
+
       if (data["error"] != null) {
     	  print("Ошибка от сервера: ${data["error"]}");
       }

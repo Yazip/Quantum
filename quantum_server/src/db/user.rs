@@ -85,3 +85,14 @@ pub async fn user_exists(user_id: Uuid, pool: &PgPool) -> Result<bool, sqlx::Err
     .await?;
     Ok(record.is_some())
 }
+
+pub async fn get_username_by_id(user_id: &Uuid, pool: &PgPool) -> Result<String, sqlx::Error> {
+    let row = sqlx::query!(
+        "SELECT username FROM users WHERE id = $1",
+        user_id
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(row.username)
+}
