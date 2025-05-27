@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'theme/quantum_theme.dart';
+import 'screens/chat_list_screen.dart';
 
 void main() {
   runApp(const QuantumApp());
@@ -28,10 +29,7 @@ class _QuantumAppState extends State<QuantumApp> {
             })
           : Scaffold(
               body: Center(
-                child: Text(
-                  "Добро пожаловать в Quantum! JWT:\n$token",
-                  textAlign: TextAlign.center,
-                ),
+                child: ChatListScreen(token: token!),
               ),
             ),
     );
