@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'chat_screen.dart';
 
 class ChatListScreen extends StatelessWidget {
   final String token;
@@ -39,10 +40,15 @@ class ChatListScreen extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               onTap: () {
-                // позже: откроем чат по WebSocket
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Открыть чат: ${chat["title"]}")),
-                );
+                Navigator.push(
+    		    context,
+    		    MaterialPageRoute(
+      			builder: (_) => ChatScreen(
+        		    chatTitle: chat["title"]!,
+        		    token: token,
+      			),
+    		    ),
+  		);
               },
             ),
           );
