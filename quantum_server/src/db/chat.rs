@@ -54,3 +54,76 @@ pub async fn create_group_chat(
 
     Ok(chat_id)
 }
+
+pub async fn add_user_to_chat(
+    chat_id: Uuid,
+    user_id: Uuid,
+    pool: &PgPool,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        INSERT INTO chat_members (chat_id, user_id)
+        VALUES ($1, $2)
+        ON CONFLICT DO NOTHING
+        "#,
+        chat_id,
+        user_id
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn remove_user_from_chat(
+    chat_id: Uuid,
+    user_id: Uuid,
+    pool: &PgPool,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        DELETE FROM chat_members
+        WHERE chat_id = $1 AND user_id = $2
+        "#,
+        chat_id,
+        user_id
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn get_chat_members(
+    chat_id: Uuid,
+    pool: &PgPool,
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    let records = sqlx::query!(
+        r#"
+        SELECT user_id FROM chat_members
+        WHERE chat_id = $1
+        "#,
+        chat_id
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(records.into_iter().map(|r| r.user_id).collect())
+}
+
+pub async fn is_user_in_chat(
+    chat_id: Uuid,
+    user_id: Uuid,
+    pool: &PgPool,
+) -> Result<bool, sqlx::Error> {
+    let record = sqlx::query_scalar!(
+        r#"
+        SELECT 1 FROM chat_members
+        WHERE chat_id = $1 AND user_id = $2
+        "#,
+        chat_id,
+        user_id
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(record.is_some())
+}

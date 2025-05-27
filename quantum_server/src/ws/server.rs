@@ -23,6 +23,11 @@ use crate::db::message::{edit_message, delete_message};
 use crate::db::reaction::set_reaction;
 use crate::db::message::forward_message;
 use crate::db::chat::create_group_chat;
+use crate::db::chat::add_user_to_chat;
+use crate::db::chat::remove_user_from_chat;
+use crate::db::chat::get_chat_members;
+use crate::db::chat::is_user_in_chat;
+use crate::db::user::user_exists;
 
 pub async fn run_ws_server(addr: &str, pool: PgPool, redis: Arc<Mutex<Connection>>) {
     let listener = TcpListener::bind(addr).await.expect("Failed to bind");
@@ -346,6 +351,133 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             Err(e) => {
                                 let err = format!(r#"{{"error":"create_chat_failed","detail":"{}"}}"#, e);
                                 let _ = write.send(Message::Text(err)).await;
+                            }
+                        }
+                    }
+
+                    Some("add_to_chat") => {
+                        let Some(sender_id) = &authenticated_user else {
+                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        let payload = &json_msg["payload"];
+                        let chat_id = payload["chat_id"].as_str().unwrap_or("");
+                        let new_user_id = payload["user_id"].as_str().unwrap_or("");
+
+                        if let (Ok(chat_uuid), Ok(user_uuid), Ok(sender_uuid)) =
+                            (Uuid::parse_str(chat_id), Uuid::parse_str(new_user_id), Uuid::parse_str(sender_id))
+                        {
+                            // Проверяем, что добавляющий состоит в чате
+                            match is_user_in_chat(chat_uuid, sender_uuid, &pool).await {
+                                Ok(true) => {
+
+                                    // Проверяем, существует ли указанный пользователь
+                                    match user_exists(user_uuid, &pool).await {
+                                        Ok(false) => {
+                                            let _ = write.send(Message::Text(r#"{"error": "user_not_found"}"#.to_string())).await;
+                                            continue;
+                                        }
+                                        Err(e) => {
+                                            let err = format!(r#"{{"error":"user_check_failed","detail":"{}"}}"#, e);
+                                            let _ = write.send(Message::Text(err)).await;
+                                            continue;
+                                        }
+                                        _ => {}
+                                    }
+
+                                    match add_user_to_chat(chat_uuid, user_uuid, &pool).await {
+                                        Ok(_) => {
+                                            let _ = write.send(Message::Text(r#"{"status": "user_added"}"#.to_string())).await;
+                                        }
+                                        Err(e) => {
+                                            let err = format!(r#"{{"error":"add_failed","detail":"{}"}}"#, e);
+                                            let _ = write.send(Message::Text(err)).await;
+                                        }
+                                    }
+                                }
+                                Ok(false) => {
+                                    let _ = write.send(Message::Text(r#"{"error":"not_in_chat"}"#.to_string())).await;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error":"check_failed","detail":"{}"}}"#, e);
+                                    let _ = write.send(Message::Text(err)).await;
+                                }
+                            }
+                        }
+                    }
+
+                    Some("remove_from_chat") => {
+                        let Some(sender_id) = &authenticated_user else {
+                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        let payload = &json_msg["payload"];
+                        let chat_id = payload["chat_id"].as_str().unwrap_or("");
+                        let remove_id = payload["user_id"].as_str().unwrap_or("");
+
+                        if let (Ok(chat_uuid), Ok(user_uuid)) =
+                            (Uuid::parse_str(chat_id), Uuid::parse_str(remove_id))
+                        {
+
+                            // Проверяем, существует ли пользователь
+                            match user_exists(user_uuid, &pool).await {
+                                Ok(false) => {
+                                    let _ = write.send(Message::Text(r#"{"error": "user_not_found"}"#.to_string())).await;
+                                    continue;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error":"user_check_failed","detail":"{}"}}"#, e);
+                                    let _ = write.send(Message::Text(err)).await;
+                                    continue;
+                                }
+                                _ => {}
+                            }
+
+                            // Проверяем, есть ли он в чате
+                            match is_user_in_chat(chat_uuid, user_uuid, &pool).await {
+                                Ok(false) => {
+                                    let _ = write.send(Message::Text(r#"{"error": "user_not_in_chat"}"#.to_string())).await;
+                                    continue;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error":"chat_check_failed","detail":"{}"}}"#, e);
+                                    let _ = write.send(Message::Text(err)).await;
+                                    continue;
+                                }
+                                _ => {}
+                            }
+
+                            match remove_user_from_chat(chat_uuid, user_uuid, &pool).await {
+                                Ok(_) => {
+                                    let _ = write.send(Message::Text(r#"{"status": "user_removed"}"#.to_string())).await;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error":"remove_failed","detail":"{}"}}"#, e);
+                                    let _ = write.send(Message::Text(err)).await;
+                                }
+                            }
+                        }
+                    }
+
+                    Some("get_chat_members") => {
+                        let payload = &json_msg["payload"];
+                        let chat_id = payload["chat_id"].as_str().unwrap_or("");
+
+                        if let Ok(chat_uuid) = Uuid::parse_str(chat_id) {
+                            match get_chat_members(chat_uuid, &pool).await {
+                                Ok(members) => {
+                                    let response = json!({
+                                        "status": "members_list",
+                                        "members": members
+                                    });
+                                    let _ = write.send(Message::Text(response.to_string())).await;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error":"get_members_failed","detail":"{}"}}"#, e);
+                                    let _ = write.send(Message::Text(err)).await;
+                                }
                             }
                         }
                     }

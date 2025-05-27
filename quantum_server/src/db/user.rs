@@ -75,3 +75,13 @@ pub async fn authenticate_user(
         Err("Неверный пароль".to_string())
     }
 }
+
+pub async fn user_exists(user_id: Uuid, pool: &PgPool) -> Result<bool, sqlx::Error> {
+    let record = sqlx::query_scalar!(
+        "SELECT 1 FROM users WHERE id = $1",
+        user_id
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(record.is_some())
+}
