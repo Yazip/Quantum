@@ -22,6 +22,7 @@ use tokio::sync::Mutex;
 use crate::db::message::{edit_message, delete_message};
 use crate::db::reaction::set_reaction;
 use crate::db::message::forward_message;
+use crate::db::chat::create_group_chat;
 
 pub async fn run_ws_server(addr: &str, pool: PgPool, redis: Arc<Mutex<Connection>>) {
     let listener = TcpListener::bind(addr).await.expect("Failed to bind");
@@ -311,6 +312,40 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                     let err = format!(r#"{{"error":"forward_failed","detail":"{}"}}"#, e);
                                     let _ = write.send(Message::Text(err)).await;
                                 }
+                            }
+                        }
+                    }
+
+                    Some("create_chat") => {
+                        let Some(user_id) = &authenticated_user else {
+                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        let payload = &json_msg["payload"];
+                        let name = payload["name"].as_str().unwrap_or("Группа без названия");
+
+                        let members: Vec<Uuid> = payload["members"]
+                            .as_array()
+                            .unwrap_or(&vec![])
+                            .iter()
+                            .filter_map(|v| v.as_str())
+                            .filter_map(|s| Uuid::parse_str(s).ok())
+                            .collect();
+
+                        let creator_uuid = Uuid::parse_str(user_id).unwrap();
+
+                        match create_group_chat(name.to_string(), creator_uuid, members, &pool).await {
+                            Ok(chat_id) => {
+                                let response = json!({
+                                    "status": "chat_created",
+                                    "chat_id": chat_id
+                                });
+                                let _ = write.send(Message::Text(response.to_string())).await;
+                            }
+                            Err(e) => {
+                                let err = format!(r#"{{"error":"create_chat_failed","detail":"{}"}}"#, e);
+                                let _ = write.send(Message::Text(err)).await;
                             }
                         }
                     }
