@@ -139,6 +139,21 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                         match msg_data {
                             Ok(msg) => {
                                 let user_uuid = sqlx::types::Uuid::parse_str(user_id).unwrap();
+                                let chat_uuid = msg.chat_id;
+
+                                match is_user_in_chat(chat_uuid, user_uuid, &pool).await {
+                                    Ok(false) => {
+                                        let _ = write.send(Message::Text(r#"{"error": "not_in_chat"}"#.to_string())).await;
+                                        continue;
+                                    }
+                                    Err(e) => {
+                                        let err = format!(r#"{{"error":"check_failed","detail":"{}"}}"#, e);
+                                        let _ = write.send(Message::Text(err)).await;
+                                        continue;
+                                    }
+                                    _ => {}
+                                }
+
                                 match send_message(msg, user_uuid, &pool).await {
                                     Ok(stored) => {
                                         let response = json!({
