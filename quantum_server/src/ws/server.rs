@@ -19,6 +19,7 @@ use redis::AsyncCommands;
 use serde_json;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use crate::db::message::{edit_message, delete_message};
 
 pub async fn run_ws_server(addr: &str, pool: PgPool, redis: Arc<Mutex<Connection>>) {
     let listener = TcpListener::bind(addr).await.expect("Failed to bind");
@@ -163,7 +164,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
 
                         match Uuid::parse_str(chat_id) {
                             Ok(chat_uuid) => {
-				let mut redis_conn = redis.lock().await;
+				                let mut redis_conn = redis.lock().await;
                                 let cache_key = format!("chat:{}:messages", chat_id);
 
                                 // Пытаемся получить сообщения из Redis
@@ -202,6 +203,54 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                             }
                             Err(_) => {
                                 let _ = write.send(Message::Text(r#"{"error": "invalid chat_id"}"#.to_string())).await;
+                            }
+                        }
+                    }
+
+                    Some("edit_message") => {
+                        let Some(user_id) = &authenticated_user else {
+                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        let payload = &json_msg["payload"];
+                        let msg_id = payload["message_id"].as_str().unwrap_or("");
+                        let new_body = payload["new_body"].as_str().unwrap_or("");
+
+                        if let Ok(msg_uuid) = Uuid::parse_str(msg_id) {
+                            let user_uuid = Uuid::parse_str(user_id).unwrap();
+                            match edit_message(msg_uuid, user_uuid, new_body.to_string(), &pool).await {
+                                Ok(_) => {
+                                    let _ = write.send(Message::Text(r#"{"status": "message_edited"}"#.to_string())).await;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error": "edit_failed", "detail": "{}"}}"#, e);
+                                    let _ = write.send(Message::Text(err)).await;
+                                }
+                            }
+                        }
+                    }
+
+                    Some("delete_message") => {
+                        let Some(user_id) = &authenticated_user else {
+                            let _ = write.send(Message::Text(r#"{"error": "unauthorized"}"#.to_string())).await;
+                            continue;
+                        };
+
+                        let payload = &json_msg["payload"];
+                        let msg_id = payload["message_id"].as_str().unwrap_or("");
+                        let for_all = payload["for_all"].as_bool().unwrap_or(false);
+
+                        if let Ok(msg_uuid) = Uuid::parse_str(msg_id) {
+                            let user_uuid = Uuid::parse_str(user_id).unwrap();
+                            match delete_message(msg_uuid, user_uuid, for_all, &pool).await {
+                                Ok(_) => {
+                                    let _ = write.send(Message::Text(r#"{"status": "message_deleted"}"#.to_string())).await;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error": "delete_failed", "detail": "{}"}}"#, e);
+                                    let _ = write.send(Message::Text(err)).await;
+                                }
                             }
                         }
                     }

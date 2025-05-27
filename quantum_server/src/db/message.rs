@@ -62,3 +62,53 @@ pub async fn get_messages_for_chat(
 
     Ok(messages)
 }
+
+pub async fn edit_message(
+    message_id: Uuid,
+    user_id: Uuid,
+    new_body: String,
+    pool: &PgPool,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        UPDATE messages
+        SET body = $1, is_edited = true
+        WHERE id = $2 AND sender_id = $3
+        "#,
+        new_body,
+        message_id,
+        user_id
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn delete_message(
+    message_id: Uuid,
+    user_id: Uuid,
+    for_all: bool,
+    pool: &PgPool,
+) -> Result<(), sqlx::Error> {
+    let query = if for_all {
+        r#"
+        UPDATE messages
+        SET is_deleted = true, body = '[deleted]'
+        WHERE id = $1 AND sender_id = $2
+        "#
+    } else {
+        r#"
+        UPDATE messages
+        SET is_deleted = true
+        WHERE id = $1 AND sender_id = $2
+        "#
+    };
+
+    sqlx::query(query)
+        .bind(message_id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
