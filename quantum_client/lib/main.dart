@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
+import 'theme/quantum_theme.dart';
 
 void main() {
   runApp(const QuantumApp());
@@ -19,14 +20,18 @@ class _QuantumAppState extends State<QuantumApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Quantum Messenger',
-      theme: ThemeData.dark(),
+      debugShowCheckedModeBanner: false,
+      theme: QuantumTheme.darkTheme,
       home: token == null
           ? LoginScreen(onLogin: (receivedToken) {
               setState(() => token = receivedToken);
             })
           : Scaffold(
               body: Center(
-                child: Text("Добро пожаловать в Quantum! JWT: $token"),
+                child: Text(
+                  "Добро пожаловать в Quantum! JWT:\n$token",
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
     );
