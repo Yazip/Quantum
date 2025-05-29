@@ -6,7 +6,9 @@ import 'chat_screen.dart';
 class ChatListScreen extends StatefulWidget {
   final String token;
 
-  const ChatListScreen({Key? key, required this.token}) : super(key: key);
+  final void Function() onLogout;
+
+  const ChatListScreen({Key? key, required this.token, required this.onLogout}) : super(key: key);
 
   @override
   State<ChatListScreen> createState() => _ChatListScreenState();
@@ -54,6 +56,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
       appBar: AppBar(
         title: const Text("Quantum — Чаты"),
         centerTitle: true,
+	actions: [
+    	    IconButton(
+      		icon: const Icon(Icons.logout),
+      		tooltip: "Выйти",
+      		onPressed: widget.onLogout,
+    	    ),
+  	],
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(12),

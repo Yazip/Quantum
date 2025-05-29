@@ -48,23 +48,30 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Quantum Login")),
+      appBar: AppBar(title: const Text("Вход")),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
             TextField(
               controller: _usernameController,
-              decoration: const InputDecoration(labelText: "Username"),
+              decoration: const InputDecoration(labelText: "Имя пользователя"),
             ),
 	    const SizedBox(height: 16),
             TextField(
               controller: _passwordController,
-              decoration: const InputDecoration(labelText: "Password"),
+              decoration: const InputDecoration(labelText: "Пароль"),
               obscureText: true,
             ),
             const SizedBox(height: 24),
-            ElevatedButton(onPressed: _login, child: const Text("Log In")),
+            ElevatedButton(onPressed: _login, child: const Text("Войти")),
+	    const SizedBox(height: 12),
+    	    TextButton(
+      		onPressed: () {
+        	    Navigator.pushNamed(context, '/register');
+      		},
+      		child: const Text("Регистрация"),
+    	    ),
             if (_error.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(_error, style: const TextStyle(color: Colors.red)),

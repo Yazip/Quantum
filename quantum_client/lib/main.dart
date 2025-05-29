@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'theme/quantum_theme.dart';
 import 'screens/chat_list_screen.dart';
+import 'screens/register_screen.dart';
 
 void main() {
   runApp(const QuantumApp());
@@ -23,13 +24,16 @@ class _QuantumAppState extends State<QuantumApp> {
       title: 'Quantum Messenger',
       debugShowCheckedModeBanner: false,
       theme: QuantumTheme.darkTheme,
+      routes: {
+    	  '/register': (context) => const RegisterScreen(),
+      },
       home: token == null
           ? LoginScreen(onLogin: (receivedToken) {
               setState(() => token = receivedToken);
             })
           : Scaffold(
               body: Center(
-                child: ChatListScreen(token: token!),
+                child: ChatListScreen(token: token!, onLogout: () => setState(() => token = null)),
               ),
             ),
     );
