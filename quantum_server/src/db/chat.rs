@@ -27,6 +27,7 @@ pub struct UserChat {
 
 pub async fn create_group_chat(
     name: String,
+    chat_type: &str,
     creator_id: Uuid,
     member_ids: Vec<Uuid>,
     pool: &PgPool,
@@ -34,10 +35,11 @@ pub async fn create_group_chat(
     let chat_id = sqlx::query_scalar!(
         r#"
         INSERT INTO chats (name, chat_type)
-        VALUES ($1, 'group')
+        VALUES ($1, $2)
         RETURNING id
         "#,
-        name
+        name,
+        chat_type
     )
     .fetch_one(pool)
     .await?;
@@ -150,4 +152,37 @@ pub async fn get_user_chats(user_id: Uuid, pool: &PgPool) -> Result<Vec<UserChat
     .await?;
 
     Ok(rows)
+}
+
+pub async fn find_private_chat_between(user1: Uuid, user2: Uuid, pool: &PgPool) -> Result<Option<Uuid>, sqlx::Error> {
+    let record = sqlx::query!(
+        r#"
+        SELECT c.id
+        FROM chats c
+        JOIN chat_members cm1 ON cm1.chat_id = c.id AND cm1.user_id = $1
+        JOIN chat_members cm2 ON cm2.chat_id = c.id AND cm2.user_id = $2
+        WHERE c.chat_type = 'private'
+        "#,
+        user1,
+        user2
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(record.map(|r| r.id))
+}
+
+pub async fn get_chat_name_by_id(chat_id: Uuid, pool: &PgPool) -> Result<String, sqlx::Error> {
+    let name_opt = sqlx::query_scalar!(
+        r#"SELECT name FROM chats WHERE id = $1"#,
+        chat_id
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if let Some(name) = name_opt {
+        Ok(name)
+    } else {
+        Err(sqlx::Error::RowNotFound)
+    }
 }

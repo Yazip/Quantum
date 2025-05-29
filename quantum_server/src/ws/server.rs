@@ -34,6 +34,9 @@ use tokio_tungstenite::WebSocketStream;
 use tokio::net::TcpStream;
 use crate::db::message::get_chat_messages;
 use crate::db::chat::get_user_chats;
+use crate::db::user::find_user_by_username;
+use crate::db::chat::find_private_chat_between;
+use crate::db::chat::get_chat_name_by_id;
 
 type Clients = Arc<Mutex<HashMap<Uuid, Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>>>>;
 
@@ -384,29 +387,74 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                         };
 
                         let payload = &json_msg["payload"];
+                        let chat_type = payload["chat_type"].as_str().unwrap_or("group");
                         let name = payload["name"].as_str().unwrap_or("Группа без названия");
 
-                        let members: Vec<Uuid> = payload["members"]
-                            .as_array()
-                            .unwrap_or(&vec![])
-                            .iter()
-                            .filter_map(|v| v.as_str())
-                            .filter_map(|s| Uuid::parse_str(s).ok())
-                            .collect();
+                        let mut member_ids = Vec::new();
+			for username in payload["members"].as_array().unwrap_or(&vec![]) {
+    			    if let Some(name_str) = username.as_str() {
+        			if let Ok(user) = find_user_by_username(name_str, &pool).await {
+            			    member_ids.push(user.id);
+        			}
+    			    }
+			}
 
                         let creator_uuid = Uuid::parse_str(user_id).unwrap();
 
-                        match create_group_chat(name.to_string(), creator_uuid, members, &pool).await {
-                            Ok(chat_id) => {
+                        if chat_type == "private" {
+                            if member_ids.len() != 1 {
+                                let _ = write.lock().await.send(Message::Text(r#"{"error": "private_chat_requires_one_member"}"#.into())).await;
+                                continue;
+                            }
+
+                            let other_user = member_ids[0];
+
+                            // Сортируем для стабильного сравнения
+                            let (user1, user2) = if creator_uuid < other_user {
+                                (creator_uuid, other_user)
+                            } else {
+                                (other_user, creator_uuid)
+                            };
+
+                            // Проверка существующего чата
+                            if let Some(existing_chat_id) = find_private_chat_between(user1, user2, &pool).await.unwrap_or(None) {
+                                let existing_name = get_chat_name_by_id(existing_chat_id, &pool).await.unwrap_or("Личный чат".into());
                                 let response = json!({
-                                    "status": "chat_created",
-                                    "chat_id": chat_id
+                                    "status": "chat_exists",
+                                    "chat_id": existing_chat_id,
+                                    "chat_name": existing_name
                                 });
                                 let _ = write.lock().await.send(Message::Text(response.to_string())).await;
+                                continue;
                             }
-                            Err(e) => {
-                                let err = format!(r#"{{"error":"create_chat_failed","detail":"{}"}}"#, e);
-                                let _ = write.lock().await.send(Message::Text(err)).await;
+
+                            // Автоназвание
+                            let name1 = get_username_by_id(&user1, &pool).await.unwrap_or("user1".into());
+                            let name2 = get_username_by_id(&user2, &pool).await.unwrap_or("user2".into());
+                            let final_name = format!("{} - {}", name1, name2);
+
+                            // Создаём
+                            match create_group_chat(final_name, "private", creator_uuid, vec![other_user], &pool).await {
+                                Ok(chat_id) => {
+                                    let response = json!({ "status": "chat_created", "chat_id": chat_id });
+                                    let _ = write.lock().await.send(Message::Text(response.to_string())).await;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error":"create_chat_failed","detail":"{}"}}"#, e);
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
+                                }
+                            }
+                        } else {
+                            // Групповой
+                            match create_group_chat(name.to_string(), "group", creator_uuid, member_ids, &pool).await {
+                                Ok(chat_id) => {
+                                    let response = json!({ "status": "chat_created", "chat_id": chat_id });
+                                    let _ = write.lock().await.send(Message::Text(response.to_string())).await;
+                                }
+                                Err(e) => {
+                                    let err = format!(r#"{{"error":"create_chat_failed","detail":"{}"}}"#, e);
+                                    let _ = write.lock().await.send(Message::Text(err)).await;
+                                }
                             }
                         }
                     }
