@@ -20,7 +20,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   void initState() {
     super.initState();
 
-    _channel = WebSocketChannel.connect(Uri.parse('ws://localhost:9001'));
+    _channel = WebSocketChannel.connect(Uri.parse('ws://192.168.0.101:9001'));
 
     _channel.stream.listen((event) {
       final data = jsonDecode(event);

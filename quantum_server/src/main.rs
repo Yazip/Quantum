@@ -12,7 +12,7 @@ async fn main() {
 
     let pool = db::init_pool().await;
 
-    let addr = "127.0.0.1:9001";
+    let addr = "0.0.0.0:9001";
     let redis = Arc::new(Mutex::new(db::redis::init_redis().await));
     ws::server::run_ws_server(addr, pool, redis).await;
 }

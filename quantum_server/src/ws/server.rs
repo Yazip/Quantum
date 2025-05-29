@@ -86,7 +86,12 @@ async fn handle_connection(stream: tokio::net::TcpStream, addr: SocketAddr, pool
                                 let user_id = Uuid::parse_str(&data.claims.sub).unwrap();
 				                authenticated_user = Some(data.claims.sub.clone());
                                 clients.lock().await.insert(user_id, write.clone());
-                                let _ = write.lock().await.send(Message::Text(r#"{"status": "authenticated"}"#.into())).await;
+				let username = get_username_by_id(&user_id, &pool).await.unwrap_or_else(|_| "unknown".to_string());
+                                let auth_response = json!({
+    				    "status": "authenticated",
+    				    "username": username
+				});
+				let _ = write.lock().await.send(Message::Text(auth_response.to_string())).await;
                             }
                             Err(_) => {
                                 let _ = write.lock().await.send(Message::Text(r#"{"error": "invalid_token"}"#.into())).await;

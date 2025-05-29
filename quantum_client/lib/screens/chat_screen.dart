@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatTitle;
-  final String chatId; // Добавим ID чата
+  final String chatId;
   final String token;
 
   const ChatScreen({
@@ -19,41 +20,45 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  late String chatId;
-  bool isAuthenticated = false;
+  late String currentUsername;
   final TextEditingController _controller = TextEditingController();
-  List<String> _messages = [];
+  List<Map<String, dynamic>> _messages = [];
   late WebSocketChannel _channel;
+  bool isAuthenticated = false;
 
   @override
   void initState() {
     super.initState();
-    chatId = widget.chatId;
+
+    // Извлекаем имя пользователя из JWT
+    Map<String, dynamic> decoded = JwtDecoder.decode(widget.token);
 
     _channel = WebSocketChannel.connect(
-      Uri.parse('ws://localhost:9001'),
+      Uri.parse('ws://192.168.0.101:9001'),
     );
 
-    // авторизация по токену
     _channel.sink.add(jsonEncode({
       "type": "auth",
       "token": widget.token,
     }));
 
     _channel.sink.add(jsonEncode({
-        "type": "get_messages",
-        "payload": {
-            "chat_id": widget.chatId
-        }
+      "type": "get_messages",
+      "payload": {
+        "chat_id": widget.chatId,
+      }
     }));
 
     _channel.stream.listen((message) {
-      print("Сервер прислал: $message");
       final data = jsonDecode(message);
+      print("Сервер прислал: $data");
 
       if (data["status"] == "authenticated") {
-    	  setState(() => isAuthenticated = true);
-	  print("Авторизация прошла");
+        setState(() {
+    	    isAuthenticated = true;
+    	    currentUsername = data["username"];
+  	});
+        print("Авторизация прошла");
       }
 
       if (data["status"] == "message_saved") {
@@ -61,50 +66,45 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       if (data["type"] == "new_message") {
-          final body = data["body"];
-          final from = data["from"];
-	  final chatIdFromServer = data["chat_id"];
+        final from = data["from"];
+        final body = data["body"];
+        final chatIdFromServer = data["chat_id"];
 
-	  if (chatIdFromServer == widget.chatId) {
-              setState(() {
-                  _messages.add("$from: $body");
-              });
-	  }
+        if (chatIdFromServer == widget.chatId) {
+          setState(() {
+            _messages.add({"from": from, "body": body});
+          });
+        }
       }
 
       if (data["type"] == "message_history") {
-          final messages = data["messages"] as List;
-	  final chatIdFromServer = data["chat_id"];
-  	  if (chatIdFromServer == widget.chatId) {
-              setState(() {
-                  _messages = messages.map((m) => "${m['from']}: ${m['body']}").toList();
-              });
-	  }
+        final messages = data["messages"] as List;
+        setState(() {
+          _messages = messages.map((m) => {
+            "from": m["from"],
+            "body": m["body"],
+          }).toList();
+        });
       }
 
       if (data["error"] != null) {
-    	  print("Ошибка от сервера: ${data["error"]}");
+        print("Ошибка от сервера: ${data["error"]}");
       }
-    },
-    onError: (error) {
-    	print("WebSocket ошибка: $error");
-    },
-    onDone: () {
-    	print("WebSocket соединение закрыто");
-    },);
+    }, onError: (error) {
+      print("WebSocket ошибка: $error");
+    }, onDone: () {
+      print("WebSocket соединение закрыто");
+    });
   }
 
   void _sendMessage() {
-    print("Попытка отправки...");
     if (!isAuthenticated) {
-    	print("Не авторизован в WebSocket");
-    	return;
+      print("Не авторизован в WebSocket");
+      return;
     }
 
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-
-    print("Отправка: $text");
 
     final payload = {
       "type": "send_message",
@@ -138,16 +138,45 @@ class _ChatScreenState extends State<ChatScreen> {
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final msg = _messages[index];
+                final from = msg["from"] ?? "???";
+                final body = msg["body"] ?? "";
+
+                final isMine = from == currentUsername;
+
                 return Align(
-                  alignment: Alignment.centerRight,
+                  alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    constraints: const BoxConstraints(maxWidth: 300),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
+                      color: isMine ? Colors.deepPurple[300] : Colors.grey[300],
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isMine ? 16 : 0),
+                        bottomRight: Radius.circular(isMine ? 0 : 16),
+                      ),
                     ),
-                    child: Text(msg),
+                    child: Column(
+                      crossAxisAlignment:
+                          isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                      children: [
+                        if (!isMine)
+                          Text(
+                            from,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        Text(
+                          body,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },

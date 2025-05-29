@@ -21,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _channel = WebSocketChannel.connect(
-      Uri.parse('ws://localhost:9001'), // адрес сервера
+      Uri.parse('ws://192.168.0.101:9001'), // адрес сервера
     );
 
     _channel.stream.listen((message) {
